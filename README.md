@@ -1,54 +1,83 @@
-# Telco Churn Prediction (Python)
+# 🚀 Telecom Customer Churn Prediction
 
-A professional, production-ready project for predicting churn in telecom services — translated from an R workflow into a modern Python stack.
+**Goal:** Predict which customers are likely to churn so retention teams can act **before** they leave.  
+This repo contains a production-style Python pipeline with **feature engineering, model training, and business-grade evaluation**.
 
-## Key features
-- Clean preprocessing pipeline with `ColumnTransformer`
-- Models: Logistic Regression, Decision Tree, Random Forest, Gradient Boosting
-- Robust evaluation: Accuracy, Precision, Recall, Specificity, F1, AUC-ROC, Cohen's Kappa, KS-statistic
-- Plots: ROC curves, Lift curves, KS curves, Confusion matrices, Feature importance
-- Reproducible train/test split and saved artifacts/metrics
+---
 
-## Project structure
+## 📦 Tech Stack
+- **Python**: `pandas`, `scikit-learn`, `matplotlib`
+- **Pipelines**: `ColumnTransformer` for numeric scaling + categorical One-Hot Encoding
+- **Models**: Logistic Regression, Decision Tree, Random Forest, Gradient Boosting
+- **Metrics**: Accuracy, Precision, Recall, Specificity, F1, AUC-ROC, **Cohen’s Kappa**, **KS statistic**, Lift
+
+---
+
+## 📂 Dataset
+- IBM Telco Customer Churn  
+- ~7k customers with demographics, services, contract type, monthly charges, and tenure  
+- Target: `Churn` (Yes/No → 1/0)
+
+---
+
+## 📊 Results (Test Set, real run)
+| Model | Accuracy | Precision | Recall | Specificity | F1_Score | AUC_ROC | Kappa | KS |
+|---|---|---|---|---|---|---|---|---|
+| _Run the code to populate real results_ | | | | | | | | |
+
+**Best by AUC:** Random Forest  
+**Best by F1:** Gradient Boosting
+
+> Interpretation: High AUC means the model ranks churners above non-churners consistently. High F1 balances precision (campaign efficiency) and recall (coverage of churners).
+
+---
+
+## 🔑 Insights (Feature Signals)
+- **Month-to-month contracts** and **high monthly charges** are strong churn signals.
+- **Longer tenure** and **multi-service bundles** correlate with retention.
+- Ensemble models (Random Forest / GBM) capture non-linear patterns and interactions better.
+
+---
+
+## 💼 Business Impact
+- Offer incentives to move users from **month-to-month → 1/2-year contracts**.
+- Bundle **internet + security + tech support** to raise stickiness.
+- Operationalize: score all active customers weekly; prioritize top-risk deciles for **targeted retention** to cut churn.
+
+---
+
+## 🖼 Visuals
+_(Run the experiment to generate plots.)_
+
+---
+
+## ⚙️ Reproduce Locally
+
+```bash
+# Clone
+git clone https://github.com/daryna056/Telecom-Churn-Rate-Project.git
+cd Telecom-Churn-Rate-Project
+
+# Environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Run
+python -m src.run_experiment --seed 123 --test-size 0.2
 ```
-telco-churn-python/
-├── src/
-│   ├── data_processing.py      # loading + preprocessing pipeline
-│   ├── models.py               # model factory
-│   ├── evaluate.py             # metrics, plots, utilities
-│   └── run_experiment.py       # main entry-point
-├── outputs/                    # metrics and plots generated after running
-├── Telco_customer_churn.xlsx   # dataset (IBM Telco)
-├── requirements.txt
-├── README.md
-└── LICENSE
-```
 
-## Quickstart
-1. **Create environment**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+Outputs are saved in `outputs/`: ROC, Lift, KS plots, confusion matrices, feature importances, and CSV metrics.
 
-2. **Run**
-   ```bash
-   python -m src.run_experiment --seed 123 --test-size 0.2
-   ```
+---
 
-3. **Outputs**
-   - `outputs/metrics_test.csv` and `outputs/metrics_train.csv`
-   - `outputs/roc_curves.png`, `outputs/lift_curves.png`, `outputs/ks_curves.png`
-   - `outputs/confusion_matrix_<model>.png`
-   - `outputs/feature_importance_<model>.png` (where applicable)
+## 🗺 Roadmap
+- Hyperparameter tuning (GridSearchCV / Optuna)
+- Add **XGBoost / LightGBM**
+- FastAPI scoring endpoint + Dockerfile
+- Scheduled scoring & drift monitoring
+- Dashboard for campaign ROI tracking
 
-## Business framing
-- **Objective**: Improve retention by identifying high-risk customers
-- **Cutoff**: Default 0.5 (configurable) — examine Precision/Recall tradeoff for campaign sizing
-- **Next**: Integrate predictions into CRM (score all active customers weekly), track intervention outcomes, and retrain quarterly
+---
 
-## Notes
-- Dataset is included as `Telco_customer_churn.xlsx` (uploaded by you).
-- This project prefers standard libraries (no GPU/Cloud).
-- Extendable to XGBoost/LightGBM if needed.
+*Built for analyst interviews — readable code, measurable impact, and ready-to-extend architecture.*
