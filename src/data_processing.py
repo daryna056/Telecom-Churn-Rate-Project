@@ -100,7 +100,7 @@ def build_preprocessor(X: pd.DataFrame) -> ColumnTransformer:
     ]
 
     numeric_transformer = Pipeline(steps=[("scaler", StandardScaler())])
-    categorical_transformer = Pipeline(steps=[("ohe", OneHotEncoder(handle_unknown="ignore", sparse=False))])
+    categorical_transformer = Pipeline(steps=[("ohe", OneHotEncoder(handle_unknown="ignore", sparse_output=False))])
 
     preprocessor = ColumnTransformer(
         transformers=[
