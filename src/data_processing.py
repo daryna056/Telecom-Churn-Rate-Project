@@ -1,8 +1,11 @@
-cat > src/data_processing.py << 'PY'
 from __future__ import annotations
+
 import pandas as pd
 import numpy as np
-from typing import Tuple
+from typing import Tuple, List
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.pipeline import Pipeline
 
 def load_data(path: str) -> pd.DataFrame:
     """Load Telco churn CSV/XLSX exactly like the R script expects."""

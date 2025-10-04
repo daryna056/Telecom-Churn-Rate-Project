@@ -1,5 +1,5 @@
-cat > src/run_experiment.py << 'PY'
 from __future__ import annotations
+
 import os
 import argparse
 import numpy as np
