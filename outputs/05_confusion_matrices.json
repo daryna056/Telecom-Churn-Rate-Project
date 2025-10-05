@@ -1,0 +1,90 @@
+{
+  "Logistic Regression": {
+    "test_confusion_matrix": [
+      [
+        932,
+        101
+      ],
+      [
+        163,
+        211
+      ]
+    ],
+    "train_confusion_matrix": [
+      [
+        3712,
+        418
+      ],
+      [
+        640,
+        855
+      ]
+    ]
+  },
+  "Decision Tree": {
+    "test_confusion_matrix": [
+      [
+        859,
+        174
+      ],
+      [
+        173,
+        201
+      ]
+    ],
+    "train_confusion_matrix": [
+      [
+        4130,
+        0
+      ],
+      [
+        0,
+        1495
+      ]
+    ]
+  },
+  "Random Forest": {
+    "test_confusion_matrix": [
+      [
+        945,
+        88
+      ],
+      [
+        191,
+        183
+      ]
+    ],
+    "train_confusion_matrix": [
+      [
+        4130,
+        0
+      ],
+      [
+        0,
+        1495
+      ]
+    ]
+  },
+  "Gradient Boosting": {
+    "test_confusion_matrix": [
+      [
+        945,
+        88
+      ],
+      [
+        189,
+        185
+      ]
+    ],
+    "train_confusion_matrix": [
+      [
+        3811,
+        319
+      ],
+      [
+        718,
+        777
+      ]
+    ]
+  }
+}
