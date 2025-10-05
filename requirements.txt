@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 pandas
 numpy
 matplotlib
@@ -5,3 +6,9 @@ scikit-learn
 scipy
 statsmodels
 openpyxl
+=======
+pandas>=1.5
+numpy>=1.23
+scikit-learn>=1.2
+matplotlib>=3.6
+>>>>>>> a147d3fa1050dae34da7e04e8c802726d7eed3ca
