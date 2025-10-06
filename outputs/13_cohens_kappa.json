@@ -1,0 +1,6 @@
+{
+  "Logistic Regression": 0.4601952935384819,
+  "Decision Tree": 0.4660178893964645,
+  "Random Forest": 0.46283327540129804,
+  "Gradient Boosting": 0.4390421775039124
+}

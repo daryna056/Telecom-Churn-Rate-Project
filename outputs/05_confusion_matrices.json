@@ -2,88 +2,88 @@
   "Logistic Regression": {
     "test_confusion_matrix": [
       [
-        932,
-        101
+        928,
+        105
       ],
       [
-        163,
-        211
+        174,
+        200
       ]
     ],
     "train_confusion_matrix": [
       [
-        3712,
-        418
+        3700,
+        430
       ],
       [
-        640,
-        855
+        658,
+        837
       ]
     ]
   },
   "Decision Tree": {
     "test_confusion_matrix": [
       [
-        859,
-        174
+        872,
+        161
       ],
       [
-        173,
-        201
+        138,
+        236
       ]
     ],
     "train_confusion_matrix": [
       [
-        4130,
-        0
+        3551,
+        579
       ],
       [
-        0,
-        1495
+        549,
+        946
       ]
     ]
   },
   "Random Forest": {
     "test_confusion_matrix": [
       [
-        945,
-        88
+        786,
+        247
       ],
       [
-        191,
-        183
+        88,
+        286
       ]
     ],
     "train_confusion_matrix": [
       [
-        4130,
-        0
+        3258,
+        872
       ],
       [
-        0,
-        1495
+        237,
+        1258
       ]
     ]
   },
   "Gradient Boosting": {
     "test_confusion_matrix": [
       [
-        945,
-        88
+        944,
+        89
       ],
       [
-        189,
-        185
+        192,
+        182
       ]
     ],
     "train_confusion_matrix": [
       [
-        3811,
-        319
+        3816,
+        314
       ],
       [
-        718,
-        777
+        749,
+        746
       ]
     ]
   }

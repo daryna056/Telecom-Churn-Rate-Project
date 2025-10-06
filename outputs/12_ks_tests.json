@@ -1,0 +1,22 @@
+{
+  "Logistic Regression": {
+    "KS_statistic": 0.547219820780552,
+    "p_value": 2.1077582755270567e-76,
+    "curve_KS": 0.547219820780552
+  },
+  "Decision Tree": {
+    "KS_statistic": 0.4962339067458366,
+    "p_value": 3.4495732621229167e-62,
+    "curve_KS": 0.5039783404341232
+  },
+  "Random Forest": {
+    "KS_statistic": 0.5312676333404083,
+    "p_value": 9.24818872748304e-72,
+    "curve_KS": 0.5312676333404083
+  },
+  "Gradient Boosting": {
+    "KS_statistic": 0.525966630601902,
+    "p_value": 2.9343439409578196e-70,
+    "curve_KS": 0.5270718689658385
+  }
+}

@@ -1,10 +1,10 @@
-Train distribution:
+Train:
 Churn
 0    4130
 1    1495
 Name: count, dtype: int64
 
-Test distribution:
+Test:
 Churn
 0    1033
 1     374

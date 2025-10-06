@@ -1,46 +1,48 @@
-<<<<<<< HEAD
 # ======================
-# Telco Churn Prediction — Python mirror of the R project
+# Telco Churn Prediction — Python version of your R workflow
 # ======================
 
 import os
 import io
 import json
-import pandas as pd
-import numpy as np
-=======
-from __future__ import annotations
-
-import os
-import argparse
 import numpy as np
 import pandas as pd
->>>>>>> a147d3fa1050dae34da7e04e8c802726d7eed3ca
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import (
-<<<<<<< HEAD
-    confusion_matrix, roc_auc_score, roc_curve, precision_score, recall_score,
-    f1_score, accuracy_score, cohen_kappa_score
+    confusion_matrix, roc_auc_score, roc_curve,
+    precision_score, recall_score, f1_score, accuracy_score, cohen_kappa_score
 )
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from scipy.stats import ks_2samp
-
-import statsmodels.api as sm  # ✅ Needed for GLM families
+import statsmodels.api as sm
 import warnings
 warnings.filterwarnings("ignore")
 
+# --- OneHotEncoder compatibility (sklearn >=1.2 uses sparse_output) ---
+from sklearn.preprocessing import OneHotEncoder
+def make_ohe():
+    import sklearn
+    major, minor = (int(x) for x in sklearn.__version__.split(".")[:2])
+    if (major, minor) >= (1, 2):
+        return OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+    else:
+        return OneHotEncoder(handle_unknown="ignore", sparse=False)
+
 # ------------------------
-# Paths & output helpers
+# 0) Paths & helpers
 # ------------------------
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "Telco_customer_churn.xlsx")
+BASE_DIR   = os.path.dirname(os.path.dirname(__file__))
+CANDIDATES = [
+    os.path.join(BASE_DIR, "WA_Fn-UseC_-Telco-Customer-Churn.csv"),
+    os.path.join(BASE_DIR, "WA_Fn-UseC_-Telc-Customer-Churn.csv"),
+]
+DATA_PATH  = next((p for p in CANDIDATES if os.path.exists(p)), CANDIDATES[0])
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -54,56 +56,27 @@ def save_fig(filename):
     plt.close()
 
 # ------------------------
-# 2. Load & Prepare Data
+# 1) Load & prepare data (matches your R preprocessing)
 # ------------------------
 print("📂 Loading data:", DATA_PATH)
-df = pd.read_excel(DATA_PATH, sheet_name=0, header=0)
+df = pd.read_csv(DATA_PATH)
 
-# --- Normalize column names (strip spaces, remove inner spaces) ---
-df.columns = (
-    df.columns.astype(str)
-    .str.replace("\uFEFF", "", regex=False)
-    .str.strip()
-    .str.replace(r"\s+", "", regex=True)
-)
+# Remove ID, convert TotalCharges to numeric, drop NA rows
+if "customerID" in df.columns:
+    df.drop(columns=["customerID"], inplace=True)
 
-# --- Create 'Churn' as in R dataset (Yes/No -> 1/0) ---
-if "Churn" not in df.columns:
-    if "ChurnLabel" in df.columns:
-        churn_str = df["ChurnLabel"].astype(str).str.strip().str.lower()
-        df["Churn"] = np.where(churn_str.eq("yes"), 1, 0)
-    elif "ChurnValue" in df.columns:
-        df["Churn"] = pd.to_numeric(df["ChurnValue"], errors="coerce").fillna(0).astype(int)
-    else:
-        raise SystemExit("❌ Could not find Churn/ChurnLabel/ChurnValue to construct target 'Churn'.")
-
-# --- Drop leakage columns that R didn’t include ---
-for leak_col in ["ChurnLabel", "ChurnValue", "ChurnScore", "ChurnReason"]:
-    if leak_col in df.columns:
-        df.drop(columns=[leak_col], inplace=True)
-
-# --- Drop ID column (CustomerID) ---
-id_cols = [c for c in df.columns if c.lower() == "customerid"]
-if id_cols:
-    df.drop(columns=id_cols, inplace=True)
-
-# --- Coerce TotalCharges, drop NAs (exactly like R) ---
-if "TotalCharges" not in df.columns:
-    raise SystemExit("❌ Expected 'TotalCharges' column after normalization.")
 df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
 df = df.dropna(subset=["TotalCharges"]).copy()
 
-# --- Clean up string cells and make factors (categoricals) ---
-for c in df.select_dtypes(include=["object"]).columns:
-    df[c] = df[c].astype(str).str.strip()
-df["Churn"] = df["Churn"].astype(int)
+# Encode Churn: Yes→1, No→0
+df["Churn"] = np.where(df["Churn"].astype(str).str.strip().str.lower() == "yes", 1, 0)
 
-char_cols = df.select_dtypes(include=["object"]).columns.tolist()
-for c in char_cols:
+# Convert object columns to category (R factors analogue)
+for c in df.select_dtypes(include=["object"]).columns:
     df[c] = df[c].astype("category")
 
 # ------------------------
-# 3. Train-Test Split
+# 2) Train/Test split (seed=123; 80/20; stratified like caret)
 # ------------------------
 np.random.seed(123)
 X = df.drop(columns=["Churn"])
@@ -114,7 +87,7 @@ num_features = X.select_dtypes(include=[np.number]).columns.tolist()
 
 preprocessor = ColumnTransformer(
     transformers=[
-        ("cat", OneHotEncoder(handle_unknown="ignore"), cat_features),
+        ("cat", make_ohe(), cat_features),
         ("num", "passthrough", num_features),
     ],
     remainder="drop"
@@ -124,350 +97,308 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=123
 )
 
-print("Train Churn Distribution:")
-print(y_train.value_counts().sort_index())
-print("Test Churn Distribution:")
-print(y_test.value_counts().sort_index())
-
+print("Train Churn Distribution:\n", y_train.value_counts().sort_index())
+print("Test Churn Distribution:\n", y_test.value_counts().sort_index())
 save_txt(
-    "Train distribution:\n" + str(y_train.value_counts().sort_index()) +
-    "\n\nTest distribution:\n" + str(y_test.value_counts().sort_index()),
+    f"Train:\n{y_train.value_counts().sort_index()}\n\nTest:\n{y_test.value_counts().sort_index()}",
     "01_split_distributions.txt"
 )
 
 # ------------------------
-# 4. Evaluation Function
+# 3) Evaluation function (same metrics as R)
 # ------------------------
-def evaluate_model(actual, predicted_prob, predicted_class, model_name):
-    cm = confusion_matrix(actual, predicted_class, labels=[0, 1])
+def evaluate_model(actual, prob, pred, name):
+    cm = confusion_matrix(actual, pred, labels=[0,1])
     tn, fp, fn, tp = cm.ravel()
-    metrics = {
-        "Model": model_name,
-        "Accuracy": accuracy_score(actual, predicted_class),
-        "Precision": precision_score(actual, predicted_class, zero_division=0),
-        "Recall": recall_score(actual, predicted_class, zero_division=0),
-        "Specificity": tn / (tn + fp) if (tn + fp) > 0 else np.nan,
-        "F1_Score": f1_score(actual, predicted_class, zero_division=0),
-        "AUC_ROC": roc_auc_score(actual, predicted_prob),
-    }
-    return metrics, cm
+    return {
+        "Model": name,
+        "Accuracy": accuracy_score(actual, pred),
+        "Precision": precision_score(actual, pred, zero_division=0),
+        "Recall": recall_score(actual, pred, zero_division=0),  # Sensitivity
+        "Specificity": tn / (tn + fp) if (tn + fp) else np.nan,
+        "F1_Score": f1_score(actual, pred, zero_division=0),
+        "AUC_ROC": roc_auc_score(actual, prob)
+    }, cm
 
 # ------------------------
-# 5. Logistic Regression (GLM)
+# 4) Logistic Regression (GLM summary like R + sklearn for preds)
 # ------------------------
+# statsmodels GLM on TRAIN for summary/odds ratios/ICs
 train_glm = pd.concat([X_train.copy(), y_train.rename("Churn")], axis=1)
 for c in cat_features:
     train_glm[c] = train_glm[c].astype(str)
 
 formula = "Churn ~ " + " + ".join([f"C({c})" for c in cat_features] + num_features)
-logit_model_sm = sm.GLM.from_formula(formula, data=train_glm, family=sm.families.Binomial()).fit()
+glm = sm.GLM.from_formula(formula, data=train_glm, family=sm.families.Binomial()).fit()
 
-glm_buffer = io.StringIO()
-glm_buffer.write("Logistic Model Summary (statsmodels GLM on TRAIN):\n")
-glm_buffer.write(str(logit_model_sm.summary()) + "\n\n")
-glm_buffer.write("Odds Ratios:\n")
-glm_buffer.write(str(np.exp(logit_model_sm.params)) + "\n\n")
-glm_buffer.write("LogLik, AIC, BIC:\n")
-bic = getattr(logit_model_sm, "bic", np.nan)
-glm_buffer.write(str((logit_model_sm.llf, logit_model_sm.aic, bic)) + "\n")
-save_txt(glm_buffer.getvalue(), "02_logistic_glm_summary.txt")
+buf = io.StringIO()
+buf.write("Logistic Model Summary (statsmodels GLM on TRAIN):\n")
+buf.write(str(glm.summary()) + "\n\n")
+buf.write("Odds Ratios:\n" + str(np.exp(glm.params)) + "\n\n")
+bic = getattr(glm, "bic", np.nan)
+buf.write("LogLik, AIC, BIC:\n" + str((glm.llf, glm.aic, bic)) + "\n")
+save_txt(buf.getvalue(), "02_logistic_glm_summary.txt")
 
-log_model = Pipeline(steps=[
-    ("prep", preprocessor),
-    ("clf", LogisticRegression(max_iter=1000, solver="lbfgs"))
-])
+# sklearn pipeline for consistent preprocessing + predictions
+log_model = Pipeline([("prep", preprocessor), ("clf", LogisticRegression(max_iter=1000))])
 log_model.fit(X_train, y_train)
-
-log_pred_test = log_model.predict_proba(X_test)[:, 1]
+log_pred_test  = log_model.predict_proba(X_test)[:, 1]
 log_class_test = (log_pred_test > 0.5).astype(int)
-log_pred_train = log_model.predict_proba(X_train)[:, 1]
+log_pred_train  = log_model.predict_proba(X_train)[:, 1]
 log_class_train = (log_pred_train > 0.5).astype(int)
 
 # ------------------------
-# 6. Decision Trees (Gini & Entropy)
+# 5) Decision Trees (Gini & Info) with rpart-like regularization + pruning
 # ------------------------
-tree_model = Pipeline(steps=[
-    ("prep", preprocessor),
-    ("clf", DecisionTreeClassifier(criterion="gini", random_state=123))
-])
-tree_model.fit(X_train, y_train)
+# Preprocess once to dense arrays for pruning/plotting
+prep_tree = ColumnTransformer(
+    transformers=[
+        ("cat", make_ohe(), cat_features),
+        ("num", "passthrough", num_features),
+    ],
+    remainder="drop"
+)
+Xt_train = prep_tree.fit_transform(X_train)
+Xt_test  = prep_tree.transform(X_test)
+ohe      = prep_tree.named_transformers_["cat"]
+feat_names = list(ohe.get_feature_names_out(cat_features)) + list(num_features)
 
-tree_model2 = Pipeline(steps=[
-    ("prep", preprocessor),
-    ("clf", DecisionTreeClassifier(criterion="entropy", random_state=123))
-])
-tree_model2.fit(X_train, y_train)
+def fit_pruned_tree(criterion):
+    base = dict(
+        criterion=criterion,
+        random_state=123,
+        min_samples_split=20,   # rpart-like minsplit
+        min_samples_leaf=7      # rpart-like minbucket
+    )
+    tmp = DecisionTreeClassifier(**base)
+    alphas = tmp.cost_complexity_pruning_path(Xt_train, y_train).ccp_alphas
+    best_a, best_auc = 0.0, -1.0
+    cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=123)
+    for a in alphas:
+        m = DecisionTreeClassifier(**base, ccp_alpha=a)
+        scores = []
+        for tr, va in cv.split(Xt_train, y_train):
+            m.fit(Xt_train[tr], y_train.iloc[tr])
+            p = m.predict_proba(Xt_train[va])[:, 1]
+            scores.append(roc_auc_score(y_train.iloc[va], p))
+        mean_auc = float(np.mean(scores))
+        if mean_auc > best_auc:
+            best_auc, best_a = mean_auc, a
+    return DecisionTreeClassifier(**base, ccp_alpha=best_a).fit(Xt_train, y_train)
 
-tree_pred_test = tree_model.predict_proba(X_test)[:, 1]
+tree_gini = fit_pruned_tree("gini")
+tree_info = fit_pruned_tree("entropy")
+
+tree_pred_test  = tree_gini.predict_proba(Xt_test)[:, 1]
 tree_class_test = (tree_pred_test > 0.5).astype(int)
-tree_pred_train = tree_model.predict_proba(X_train)[:, 1]
+tree_pred_train  = tree_gini.predict_proba(Xt_train)[:, 1]
 tree_class_train = (tree_pred_train > 0.5).astype(int)
 
 # ------------------------
-# 7. Random Forest
+# 6) Random Forest (impurity importance; regularized to avoid overfit)
 # ------------------------
-rf_model = Pipeline(steps=[
+rf_model = Pipeline([
     ("prep", preprocessor),
     ("clf", RandomForestClassifier(
-        n_estimators=500, random_state=123, n_jobs=-1, criterion="gini"
+        n_estimators=500,
+        criterion="gini",
+        max_depth=10,            # regularize depth
+        min_samples_split=20,
+        min_samples_leaf=10,
+        max_features="sqrt",
+        class_weight="balanced",
+        random_state=123,
+        n_jobs=-1
     ))
 ])
 rf_model.fit(X_train, y_train)
-
-rf_pred_test = rf_model.predict_proba(X_test)[:, 1]
+rf_pred_test  = rf_model.predict_proba(X_test)[:, 1]
 rf_class_test = (rf_pred_test > 0.5).astype(int)
-rf_pred_train = rf_model.predict_proba(X_train)[:, 1]
+rf_pred_train  = rf_model.predict_proba(X_train)[:, 1]
 rf_class_train = (rf_pred_train > 0.5).astype(int)
 
 # ------------------------
-# 8. Gradient Boosting (GBM)
+# 7) Gradient Boosting (R gbm params)
 # ------------------------
-gbm_model = Pipeline(steps=[
+gbm_model = Pipeline([
     ("prep", preprocessor),
     ("clf", GradientBoostingClassifier(
-        n_estimators=300,
-        learning_rate=0.01,
-        max_depth=3,
-        min_samples_leaf=10,
+        n_estimators=300,        # n.trees
+        learning_rate=0.01,      # shrinkage
+        max_depth=3,             # interaction.depth
+        min_samples_leaf=10,     # n.minobsinnode
         random_state=123
     ))
 ])
 gbm_model.fit(X_train, y_train)
-
-gbm_pred_test = gbm_model.predict_proba(X_test)[:, 1]
+gbm_pred_test  = gbm_model.predict_proba(X_test)[:, 1]
 gbm_class_test = (gbm_pred_test > 0.5).astype(int)
-gbm_pred_train = gbm_model.predict_proba(X_train)[:, 1]
+gbm_pred_train  = gbm_model.predict_proba(X_train)[:, 1]
 gbm_class_train = (gbm_pred_train > 0.5).astype(int)
 
 # ------------------------
-# 9–10. Evaluate All Models
+# 8) Evaluate all (Test & Train) like R
 # ------------------------
-metrics_test = []
-metrics_train = []
-cms = {}
-
-for name, (pred_test, cls_test, pred_train, cls_train) in {
-    "Logistic Regression": (log_pred_test, log_class_test, log_pred_train, log_class_train),
+metrics_test, metrics_train, cms = [], [], {}
+for name, (pt, ct, pr, cr) in {
+    "Logistic Regression": (log_pred_test,  log_class_test,  log_pred_train,  log_class_train),
     "Decision Tree":       (tree_pred_test, tree_class_test, tree_pred_train, tree_class_train),
-    "Random Forest":       (rf_pred_test,  rf_class_test,  rf_pred_train,  rf_class_train),
-    "Gradient Boosting":   (gbm_pred_test, gbm_class_test, gbm_pred_train, gbm_class_train),
+    "Random Forest":       (rf_pred_test,   rf_class_test,   rf_pred_train,   rf_class_train),
+    "Gradient Boosting":   (gbm_pred_test,  gbm_class_test,  gbm_pred_train,  gbm_class_train),
 }.items():
-    mtest, cmtest = evaluate_model(y_test, pred_test, cls_test, name)
-    mtrain, cmtrain = evaluate_model(y_train, pred_train, cls_train, name)
-    metrics_test.append(mtest)
-    metrics_train.append(mtrain)
+    mtest, cmtest = evaluate_model(y_test, pt, ct, name)
+    mtrain, cmtrain = evaluate_model(y_train, pr, cr, name)
+    metrics_test.append(mtest); metrics_train.append(mtrain)
     cms[name] = {"test_confusion_matrix": cmtest.tolist(),
                  "train_confusion_matrix": cmtrain.tolist()}
 
-df_test = pd.DataFrame(metrics_test)
-df_train = pd.DataFrame(metrics_train)
-df_test.to_excel(os.path.join(OUTPUT_DIR, "03_metrics_test.xlsx"), index=False)
-df_train.to_excel(os.path.join(OUTPUT_DIR, "04_metrics_train.xlsx"), index=False)
+pd.DataFrame(metrics_test).to_excel(os.path.join(OUTPUT_DIR, "03_metrics_test.xlsx"), index=False)
+pd.DataFrame(metrics_train).to_excel(os.path.join(OUTPUT_DIR, "04_metrics_train.xlsx"), index=False)
 save_txt(cms, "05_confusion_matrices.json")
 
-print("\n==== Evaluation on Test Set ====")
-print(df_test)
-print("\n==== Evaluation on Train Set ====")
-print(df_train)
+print("\n==== Evaluation on Test Set ====\n", pd.DataFrame(metrics_test))
+print("\n==== Evaluation on Train Set ====\n", pd.DataFrame(metrics_train))
 
 # ------------------------
-# 11. ROC Curves
+# 9) ROC curves (Test)
 # ------------------------
 plt.figure(figsize=(8,6))
 for label, probs in [
-    ("Logistic", log_pred_test),
+    ("Logistic",      log_pred_test),
     ("Decision Tree", tree_pred_test),
     ("Random Forest", rf_pred_test),
-    ("GBM", gbm_pred_test)
+    ("GBM",           gbm_pred_test),
 ]:
     fpr, tpr, _ = roc_curve(y_test, probs)
     auc = roc_auc_score(y_test, probs)
     plt.plot(fpr, tpr, label=f"{label} (AUC={auc:.3f})")
 plt.plot([0,1],[0,1], linestyle="--")
 plt.title("ROC Curves - Test Set")
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
+plt.xlabel("False Positive Rate"); plt.ylabel("True Positive Rate")
 plt.legend(loc="lower right")
 save_fig("06_roc_curves_test.png")
 
+# ------------------------
+# 10) Variable importance (RF & GBM)
+# ------------------------
+def feature_names_from_preproc(prep, numeric_cols, categorical_cols):
+    ohe = prep.named_transformers_["cat"]
+    return list(ohe.get_feature_names_out(categorical_cols)) + list(numeric_cols)
+
+# RF
+rf_clf = rf_model.named_steps["clf"]
+rf_feats = feature_names_from_preproc(rf_model.named_steps["prep"], num_features, cat_features)
+rf_imp = pd.DataFrame({"Variable": rf_feats, "Importance": rf_clf.feature_importances_}).sort_values("Importance", ascending=False)
+rf_imp.head(10).to_excel(os.path.join(OUTPUT_DIR, "07_rf_top10_importance.xlsx"), index=False)
+plt.figure(figsize=(10,6))
+plt.bar(range(10), rf_imp["Importance"].head(10))
+plt.xticks(range(10), rf_imp["Variable"].head(10), rotation=60, ha="right")
+plt.title("Top 10 Important Features (Random Forest)")
+save_fig("07_rf_top10_importance.png")
+
+# GBM
+gbm_clf = gbm_model.named_steps["clf"]
+gbm_feats = feature_names_from_preproc(gbm_model.named_steps["prep"], num_features, cat_features)
+gbm_imp = pd.DataFrame({"var": gbm_feats, "rel.inf": gbm_clf.feature_importances_}).sort_values("rel.inf", ascending=False)
+gbm_imp.head(10).to_excel(os.path.join(OUTPUT_DIR, "08_gbm_top10_importance.xlsx"), index=False)
+plt.figure(figsize=(10,6))
+plt.bar(range(10), gbm_imp["rel.inf"].head(10))
+plt.xticks(range(10), gbm_imp["var"].head(10), rotation=60, ha="right")
+plt.title("Top 10 Important Features (GBM)")
+save_fig("08_gbm_top10_importance.png")
+
+# ------------------------
+# 11) Plot pruned trees (top levels)
+# ------------------------
+plt.figure(figsize=(18,10))
+plot_tree(tree_gini, max_depth=3, feature_names=feat_names, class_names=["No","Yes"], filled=True)
+plt.title("Decision Tree (Gini) - Top Levels (pruned)")
+save_fig("09_tree_gini.png")
+
+plt.figure(figsize=(18,10))
+plot_tree(tree_info, max_depth=3, feature_names=feat_names, class_names=["No","Yes"], filled=True)
+plt.title("Decision Tree (Information Gain) - Top Levels (pruned)")
+save_fig("10_tree_info.png")
+
+# ------------------------
+# 12) Lift curves
+# ------------------------
+def make_lift(actual, prob, model_name):
+    d = pd.DataFrame({"actual": np.asarray(actual), "prob": np.asarray(prob)}).sort_values("prob", ascending=False)
+    d["cum_actual"] = d["actual"].cumsum()
+    total_pos = d["actual"].sum()
+    n = len(d)
+    d["perc_data"] = (np.arange(1, n+1))/n
+    d["perc_target"] = d["cum_actual"]/(total_pos if total_pos else 1)
+    d["lift"] = d["perc_target"]/d["perc_data"]
+    d["model"] = model_name
+    return d[["perc_data","lift","model"]]
+
+lift_all = pd.concat([
+    make_lift(y_test, log_pred_test,  "Logistic Regression"),
+    make_lift(y_test, tree_pred_test, "Decision Tree"),
+    make_lift(y_test, rf_pred_test,   "Random Forest"),
+    make_lift(y_test, gbm_pred_test,  "Gradient Boosting"),
+], ignore_index=True)
+lift_all.to_excel(os.path.join(OUTPUT_DIR, "11_lift_data.xlsx"), index=False)
+
+plt.figure(figsize=(8,6))
+for name, g in lift_all.groupby("model"):
+    plt.plot(g["perc_data"], g["lift"], label=name)
+plt.axhline(1.0, linestyle="--", color="black")
+plt.title("Lift Curves for All Models")
+plt.xlabel("Proportion of Test Set (sorted by predicted probability)")
+plt.ylabel("Lift")
+plt.legend()
+save_fig("11_lift_curves.png")
+
+# ------------------------
+# 13) KS curves & significance tests
+# ------------------------
+def ks_plot(prob, y, model_name, fname):
+    d = pd.DataFrame({"prob": prob, "label": np.asarray(y)}).sort_values("prob", ascending=False)
+    cum_pos = (d["label"].cumsum()/d["label"].sum()) if d["label"].sum()>0 else np.zeros(len(d))
+    cum_neg = ((1-d["label"]).cumsum()/(1-d["label"]).sum()) if (1-d["label"]).sum()>0 else np.zeros(len(d))
+    ks_series = np.abs(cum_pos - cum_neg)
+    ks = ks_series.max()
+    ix = int(np.argmax(ks_series.values))
+
+    plt.figure(figsize=(8,6))
+    plt.plot(cum_pos.values, label="Positive Class (1)")
+    plt.plot(cum_neg.values, label="Negative Class (0)")
+    plt.vlines(ix, ymin=cum_neg.values[ix], ymax=cum_pos.values[ix], linestyles="dashed")
+    plt.title(f"Kolmogorov–Smirnov Curve - {model_name} (KS={ks:.4f})")
+    plt.xlabel("Sorted Observations"); plt.ylabel("Cumulative Distribution")
+    plt.legend(loc="lower right")
+    save_fig(fname)
+    return float(ks)
+
+def ks_test(prob, y):
+    p1 = np.asarray(prob)[np.asarray(y)==1]
+    p0 = np.asarray(prob)[np.asarray(y)==0]
+    return ks_2samp(p1, p0)
+
+ks_out = {}
+for name, probs in {
+    "Logistic Regression": log_pred_test,
+    "Decision Tree":       tree_pred_test,
+    "Random Forest":       rf_pred_test,
+    "Gradient Boosting":   gbm_pred_test,
+}.items():
+    ks_curve = ks_plot(probs, y_test, name, f"12_ks_{name.replace(' ','_').lower()}.png")
+    ks_res = ks_test(probs, y_test)
+    ks_out[name] = {"KS_statistic": float(ks_res.statistic), "p_value": float(ks_res.pvalue), "curve_KS": ks_curve}
+save_txt(ks_out, "12_ks_tests.json")
+
+# ------------------------
+# 14) Cohen's Kappa
+# ------------------------
+kappas = {
+    "Logistic Regression": cohen_kappa_score(y_test, log_class_test),
+    "Decision Tree":       cohen_kappa_score(y_test, tree_class_test),
+    "Random Forest":       cohen_kappa_score(y_test, rf_class_test),
+    "Gradient Boosting":   cohen_kappa_score(y_test, gbm_class_test),
+}
+save_txt({k: float(v) for k, v in kappas.items()}, "13_cohens_kappa.json")
+
 print("\n✅ Finished. All artifacts saved to:", OUTPUT_DIR)
-=======
-    accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, confusion_matrix, roc_curve, cohen_kappa_score
-)
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from scipy.stats import ks_2samp
-
-from data_processing import load_data, prepare_dataframe, split_Xy
-
-# ---------- helpers ----------
-def compute_metrics(y_true, y_prob, y_pred, model_name, dataset):
-    cm = confusion_matrix(y_true, y_pred)
-    tn, fp, fn, tp = cm.ravel()
-    acc = accuracy_score(y_true, y_pred)
-    prec = precision_score(y_true, y_pred, zero_division=0)  # Pos Pred Value
-    rec = recall_score(y_true, y_pred)                       # Sensitivity
-    spec = tn / (tn + fp) if (tn + fp) else 0.0              # Specificity
-    f1  = f1_score(y_true, y_pred)
-    auc = roc_auc_score(y_true, y_prob)
-    kappa = cohen_kappa_score(y_true, y_pred)
-    return {
-        "Model": model_name,
-        "Dataset": dataset,
-        "Accuracy": acc,
-        "Precision": prec,
-        "Recall": rec,
-        "Specificity": spec,
-        "F1_Score": f1,
-        "AUC_ROC": auc,
-        "Cohen_Kappa": kappa,
-    }, cm
-
-def lift_curve_points(y_true, y_prob):
-    df = pd.DataFrame({"y": y_true, "p": y_prob}).sort_values("p", ascending=False)
-    df["cum_pos"] = np.cumsum(df["y"])
-    total_pos = df["y"].sum()
-    df["perc_data"] = np.arange(1, len(df) + 1) / len(df)
-    df["perc_target"] = df["cum_pos"] / total_pos if total_pos > 0 else 0.0
-    df["lift"] = df["perc_target"] / df["perc_data"]
-    return df["perc_data"].values, df["lift"].values
-
-def ks_statistic(y_true, y_prob):
-    return ks_2samp(y_prob[y_true == 1], y_prob[y_true == 0])
-
-# ---------- main ----------
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data", type=str, default="WA_Fn-UseC_-Telco-Customer-Churn.csv",
-                        help="Path to IBM Telco CSV (or Excel).")
-    args = parser.parse_args()
-
-    outdir = "outputs"
-    os.makedirs(outdir, exist_ok=True)
-
-    # 1) Load + prep (mirror R)
-    df = load_data(args.data)
-    df = prepare_dataframe(df)
-    X, y = split_Xy(df, target="Churn")
-
-    # 2) Stratified 80/20 split with seed=123 (like caret::createDataPartition)
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y, test_size=0.2, random_state=123, stratify=y
-    )
-
-    # 3) One-hot (R factors -> design matrix). No scaling (R didn’t scale).
-    X_tr_mat = pd.get_dummies(X_tr, drop_first=False)
-    X_te_mat = pd.get_dummies(X_te, drop_first=False)
-    X_te_mat = X_te_mat.reindex(columns=X_tr_mat.columns, fill_value=0)
-
-    # 4) Models aligned to R choices/params
-    models = {
-        "Logistic Regression": LogisticRegression(max_iter=1000, solver="lbfgs"),
-        "Decision Tree (Gini)": DecisionTreeClassifier(criterion="gini", random_state=123),
-        "Decision Tree (Entropy)": DecisionTreeClassifier(criterion="entropy", random_state=123),
-        "Random Forest": RandomForestClassifier(
-            n_estimators=500, criterion="gini", random_state=123
-        ),
-        "Gradient Boosting": GradientBoostingClassifier(
-            n_estimators=300, learning_rate=0.01, max_depth=3,
-            min_samples_leaf=10, random_state=123
-        ),
-    }
-
-    metrics_train, metrics_test = [], []
-    roc_store, lift_store = {}, {}
-    ks_rows, importances = [], {}
-
-    for name, clf in models.items():
-        clf.fit(X_tr_mat, y_tr)
-        y_prob_tr = clf.predict_proba(X_tr_mat)[:, 1]
-        y_prob_te = clf.predict_proba(X_te_mat)[:, 1]
-        y_pred_tr = (y_prob_tr > 0.5).astype(int)
-        y_pred_te = (y_prob_te > 0.5).astype(int)
-
-        mtr, cm_tr = compute_metrics(y_tr, y_prob_tr, y_pred_tr, name, "Train")
-        mte, cm_te = compute_metrics(y_te, y_prob_te, y_pred_te, name, "Test")
-        metrics_train.append(mtr); metrics_test.append(mte)
-
-        print(f"\n{name} - Confusion Matrix (Test):\n{cm_te}")
-
-        fpr, tpr, _ = roc_curve(y_te, y_prob_te)
-        roc_store[name] = (fpr, tpr, roc_auc_score(y_te, y_prob_te))
-
-        px, py = lift_curve_points(y_te, y_prob_te)
-        lift_store[name] = (px, py)
-
-        ks = ks_statistic(y_te, y_prob_te)
-        ks_rows.append({"Model": name, "KS_Statistic": ks.statistic, "KS_pvalue": ks.pvalue})
-
-        if hasattr(clf, "feature_importances_"):
-            importances[name] = pd.Series(clf.feature_importances_, index=X_tr_mat.columns) \
-                                    .sort_values(ascending=False)
-
-    # Save metrics
-    df_train = pd.DataFrame(metrics_train)
-    df_test = pd.DataFrame(metrics_test)
-    df_train.to_csv(os.path.join(outdir, "metrics_train.csv"), index=False)
-    df_test.to_csv(os.path.join(outdir, "metrics_test.csv"), index=False)
-    pd.DataFrame(ks_rows).to_csv(os.path.join(outdir, "metrics_ks.csv"), index=False)
-
-    print("\n==== Evaluation on Train Set ====")
-    print(df_train.round(3))
-    print("\n==== Evaluation on Test Set ====")
-    print(df_test.round(3))
-
-    # ROC (all)
-    plt.figure(figsize=(7, 6))
-    for name, (fpr, tpr, auc) in roc_store.items():
-        plt.plot(fpr, tpr, label=f"{name} (AUC={auc:.3f})")
-    plt.plot([0, 1], [0, 1], "k--")
-    plt.xlabel("False Positive Rate"); plt.ylabel("True Positive Rate")
-    plt.title("ROC Curves - Test Set"); plt.legend(); plt.tight_layout()
-    plt.savefig(os.path.join(outdir, "roc_curves.png")); plt.close()
-
-    # Lift (all)
-    plt.figure(figsize=(7, 6))
-    for name, (px, py) in lift_store.items():
-        plt.plot(px, py, label=name)
-    plt.axhline(1.0, color="black", linestyle="--")
-    plt.xlabel("Proportion of Test Set (sorted by score)")
-    plt.ylabel("Lift")
-    plt.title("Lift Curves - Test Set"); plt.legend(); plt.tight_layout()
-    plt.savefig(os.path.join(outdir, "lift_curves.png")); plt.close()
-
-    # KS (per model)
-    for name in roc_store.keys():
-        # recompute sorted CDFs for curve
-        y_prob_te = models[name].predict_proba(X_te_mat)[:, 1]
-        dfks = pd.DataFrame({"y": y_te, "p": y_prob_te}).sort_values("p", ascending=False)
-        dfks["cum_pos"] = np.cumsum(dfks["y"]) / dfks["y"].sum()
-        dfks["cum_neg"] = np.cumsum(1 - dfks["y"]) / (len(dfks) - dfks["y"].sum())
-        ks_stat = np.max(np.abs(dfks["cum_pos"] - dfks["cum_neg"]))
-
-        plt.figure(figsize=(7, 6))
-        plt.plot(dfks["cum_pos"].values, label="Positive (1)")
-        plt.plot(dfks["cum_neg"].values, label="Negative (0)")
-        plt.title(f"Kolmogorov–Smirnov Curve - {name} (KS={ks_stat:.3f})")
-        plt.legend(); plt.tight_layout()
-        plt.savefig(os.path.join(outdir, f"ks_{name.replace(' ', '_')}.png")); plt.close()
-
-    # Feature importance (RF & GBM)
-    for model_name in ["Random Forest", "Gradient Boosting"]:
-        if model_name in importances:
-            imp = importances[model_name].head(10)
-            plt.figure(figsize=(8, 6))
-            plt.barh(imp.index[::-1], imp.values[::-1])
-            plt.title(f"Top 10 Important Features ({model_name})")
-            plt.tight_layout()
-            plt.savefig(os.path.join(outdir, f"feature_importance_{model_name.replace(' ', '_')}.png"))
-            plt.close()
-
-    print(f"\nDone. Metrics and plots saved in: {os.path.abspath(outdir)}")
-
-if __name__ == "__main__":
-    main()
-PY
-
->>>>>>> a147d3fa1050dae34da7e04e8c802726d7eed3ca
