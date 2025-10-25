@@ -1,7 +1,7 @@
 # 📈 Telecom Customer Churn Prediction
 
 A complete, reproducible **Python-based machine learning pipeline** for predicting customer churn using the classic **IBM Telco dataset**.  
-The project mirrors an end-to-end analytical workflow — from data cleaning and model training to evaluation, interpretability, and exportable diagnostics.
+The project mirrors an end-to-end analytical workflow  -  from data cleaning and model training to evaluation, interpretability, and exportable diagnostics.
 
 ---
 
@@ -90,7 +90,7 @@ The script:
 | **03_metrics_test.xlsx** | Test-set metrics (Accuracy, Precision, Recall, Specificity, F1, AUC) |
 | **04_metrics_train.xlsx** | Same metrics on training data for overfitting check |
 | **06_roc_curves_test.png** | Combined ROC curves with per-model AUC |
-| **11_lift_curves.png** | Lift curves for all models — visualize campaign efficiency |
+| **11_lift_curves.png** | Lift curves for all models  -  visualize campaign efficiency |
 | **12_ks_tests.json** | KS statistic and p-values for distributional separation |
 | **13_cohens_kappa.json** | Kappa coefficients quantifying classifier agreement |
 
@@ -114,7 +114,7 @@ These metrics together show **predictive performance**, **class separation stren
   Random Forest and Gradient Boosting dominate by AUC (~0.85–0.88), confirming superior ranking ability.
   
 - **Feature Importances:**  
-  `Contract`, `tenure`, and `MonthlyCharges` emerge as top drivers — consistent with domain intuition.
+  `Contract`, `tenure`, and `MonthlyCharges` emerge as top drivers  -  consistent with domain intuition.
   
 - **Lift Curves:**  
   Ensemble models show >2× lift in the top 20% of customers, useful for targeting retention campaigns.
